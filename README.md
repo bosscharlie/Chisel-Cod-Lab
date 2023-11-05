@@ -2,7 +2,7 @@
 
 使用Chisel对《计算机组成原理》课程实验的实现。
 
-文件结构基于[Chisel](https://github.com/freechipsproject/chisel-template.git)。
+文件结构基于[Chisel-Template](https://github.com/freechipsproject/chisel-template.git)。
 
 ## 声明
 
