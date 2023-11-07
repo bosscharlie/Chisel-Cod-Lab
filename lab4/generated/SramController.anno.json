@@ -1,0 +1,26 @@
+[
+  {
+    "class":"chisel3.experimental.EnumAnnotations$EnumComponentAnnotation",
+    "target":"SramController.SramController.stateReg",
+    "enumTypeName":"SramController$State"
+  },
+  {
+    "class":"chisel3.experimental.EnumAnnotations$EnumDefAnnotation",
+    "typeName":"SramController$State",
+    "definition":{
+      "READ":1,
+      "WRITE3":5,
+      "READ2":2,
+      "IDLE":0,
+      "WRITE2":4,
+      "WRITE":3,
+      "DONE":6
+    }
+  },
+  {
+    "class":"firrtl.transforms.BlackBoxInlineAnno",
+    "target":"SramController.TriStateGate",
+    "name":"TriStateGate.v",
+    "text":"\nmodule TriStateGate(triData, dataz, datain, dataout);\ninout [31:0] triData;\ninput dataz;\ninput [31:0] datain;\noutput [31:0] dataout;\n\nassign triData = dataz ? 32'bz : datain;\nassign dataout = triData;\n\nendmodule;\n        "
+  }
+]
