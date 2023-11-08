@@ -10,15 +10,15 @@
 module SramController(
   input         clock,
                 reset,
-                io_stb_i,
-                io_cyc_i,
-  input  [31:0] io_adr_i,
-  input         io_we_i,
-  input  [31:0] io_dat_i,
-  input  [3:0]  io_sel_i,
+                io_wb_stb_i,
+                io_wb_cyc_i,
+  input  [31:0] io_wb_adr_i,
+  input         io_wb_we_i,
+  input  [31:0] io_wb_dat_i,
+  input  [3:0]  io_wb_sel_i,
   inout  [31:0] io_sram_io_ram_data,
-  output        io_ack_o,
-  output [31:0] io_dat_o,
+  output        io_wb_ack_o,
+  output [31:0] io_wb_dat_o,
   output [19:0] io_sram_io_ram_addr,
   output [3:0]  io_sram_io_ram_be_n,
   output        io_sram_io_ram_ce_n,
@@ -41,8 +41,8 @@ module SramController(
           {{stateReg}, {3'h0}, {3'h6}, {3'h5}, {3'h4}, {3'h6}, {3'h2}, {stateReg}};
         stateReg <= _GEN[stateReg];
       end
-      else if (io_stb_i & io_cyc_i)
-        stateReg <= {1'h0, io_we_i, 1'h1};
+      else if (io_wb_stb_i & io_wb_cyc_i)
+        stateReg <= {1'h0, io_wb_we_i, 1'h1};
       if (~(|stateReg) | stateReg == 3'h1 | stateReg != 3'h2) begin
       end
       else
@@ -52,13 +52,13 @@ module SramController(
   TriStateGate tri_0 (
     .triData (io_sram_io_ram_data),
     .dataz   (stateReg == 3'h1 | stateReg == 3'h2),
-    .datain  (io_dat_i),
+    .datain  (io_wb_dat_i),
     .dataout (_tri_dataout)
   );
-  assign io_ack_o = _io_sram_io_ram_ce_n_T_1;
-  assign io_dat_o = rdData;
-  assign io_sram_io_ram_addr = io_adr_i[21:2];
-  assign io_sram_io_ram_be_n = ~io_sel_i;
+  assign io_wb_ack_o = _io_sram_io_ram_ce_n_T_1;
+  assign io_wb_dat_o = rdData;
+  assign io_sram_io_ram_addr = io_wb_adr_i[21:2];
+  assign io_sram_io_ram_be_n = ~io_wb_sel_i;
   assign io_sram_io_ram_ce_n = ~(|stateReg) | _io_sram_io_ram_ce_n_T_1;
   assign io_sram_io_ram_oe_n = stateReg != 3'h1 & stateReg != 3'h2;
   assign io_sram_io_ram_we_n = stateReg != 3'h4;
@@ -90,10 +90,10 @@ module lab4_top(
                 ext_ram_we_n
 );
 
-  wire        _sram_controller_ext_io_ack_o;
-  wire [31:0] _sram_controller_ext_io_dat_o;
-  wire        _sram_controller_base_io_ack_o;
-  wire [31:0] _sram_controller_base_io_dat_o;
+  wire        _sram_controller_ext_io_wb_ack_o;
+  wire [31:0] _sram_controller_ext_io_wb_dat_o;
+  wire        _sram_controller_base_io_wb_ack_o;
+  wire [31:0] _sram_controller_base_io_wb_dat_o;
   wire [31:0] _wb_mux_wbm_dat_o;
   wire        _wb_mux_wbm_ack_o;
   wire [31:0] _wb_mux_wbs0_adr_o;
@@ -133,8 +133,8 @@ module lab4_top(
     .locked   (_clock_gen_locked)
   );
   sram_tester #(
-    .ADDR_BASE(32'h8000_0000),
-    .ADDR_MASK(32'h007F_FFFF)
+    .ADDR_BASE("32'h8000_0000"),
+    .ADDR_MASK("32'h007F_FFFF")
   ) u_sram_tester (
     .clk_i               (_clock_gen_clk_out1),
     .rst_i               (reset_of_clock10M),
@@ -166,14 +166,14 @@ module lab4_top(
     .wbm_cyc_i     (_u_sram_tester_wb_cyc_o),
     .wbs0_addr     (32'h80000000),
     .wbs0_addr_msk (32'hFFC00000),
-    .wbs0_dat_i    (_sram_controller_base_io_dat_o),
-    .wbs0_ack_i    (_sram_controller_base_io_ack_o),
+    .wbs0_dat_i    (_sram_controller_base_io_wb_dat_o),
+    .wbs0_ack_i    (_sram_controller_base_io_wb_ack_o),
     .wbs0_err_i    (1'h0),
     .wbs0_rty_i    (1'h0),
     .wbs1_addr     (32'h80400000),
     .wbs1_addr_msk (32'hFFC00000),
-    .wbs1_dat_i    (_sram_controller_ext_io_dat_o),
-    .wbs1_ack_i    (_sram_controller_ext_io_ack_o),
+    .wbs1_dat_i    (_sram_controller_ext_io_wb_dat_o),
+    .wbs1_ack_i    (_sram_controller_ext_io_wb_ack_o),
     .wbs1_err_i    (1'h0),
     .wbs1_rty_i    (1'h0),
     .wbm_dat_o     (_wb_mux_wbm_dat_o),
@@ -196,15 +196,15 @@ module lab4_top(
   SramController sram_controller_base (
     .clock               (_clock_gen_clk_out1),
     .reset               (reset_of_clock10M),
-    .io_stb_i            (_wb_mux_wbs0_stb_o),
-    .io_cyc_i            (_wb_mux_wbs0_cyc_o),
-    .io_adr_i            (_wb_mux_wbs0_adr_o),
-    .io_we_i             (_wb_mux_wbs0_we_o),
-    .io_dat_i            (_wb_mux_wbs0_dat_o),
-    .io_sel_i            (_wb_mux_wbs0_sel_o),
+    .io_wb_stb_i         (_wb_mux_wbs0_stb_o),
+    .io_wb_cyc_i         (_wb_mux_wbs0_cyc_o),
+    .io_wb_adr_i         (_wb_mux_wbs0_adr_o),
+    .io_wb_we_i          (_wb_mux_wbs0_we_o),
+    .io_wb_dat_i         (_wb_mux_wbs0_dat_o),
+    .io_wb_sel_i         (_wb_mux_wbs0_sel_o),
     .io_sram_io_ram_data (base_ram_data),
-    .io_ack_o            (_sram_controller_base_io_ack_o),
-    .io_dat_o            (_sram_controller_base_io_dat_o),
+    .io_wb_ack_o         (_sram_controller_base_io_wb_ack_o),
+    .io_wb_dat_o         (_sram_controller_base_io_wb_dat_o),
     .io_sram_io_ram_addr (base_ram_addr),
     .io_sram_io_ram_be_n (base_ram_be_n),
     .io_sram_io_ram_ce_n (base_ram_ce_n),
@@ -214,15 +214,15 @@ module lab4_top(
   SramController sram_controller_ext (
     .clock               (_clock_gen_clk_out1),
     .reset               (reset_of_clock10M),
-    .io_stb_i            (_wb_mux_wbs1_stb_o),
-    .io_cyc_i            (_wb_mux_wbs1_cyc_o),
-    .io_adr_i            (_wb_mux_wbs1_adr_o),
-    .io_we_i             (_wb_mux_wbs1_we_o),
-    .io_dat_i            (_wb_mux_wbs1_dat_o),
-    .io_sel_i            (_wb_mux_wbs1_sel_o),
+    .io_wb_stb_i         (_wb_mux_wbs1_stb_o),
+    .io_wb_cyc_i         (_wb_mux_wbs1_cyc_o),
+    .io_wb_adr_i         (_wb_mux_wbs1_adr_o),
+    .io_wb_we_i          (_wb_mux_wbs1_we_o),
+    .io_wb_dat_i         (_wb_mux_wbs1_dat_o),
+    .io_wb_sel_i         (_wb_mux_wbs1_sel_o),
     .io_sram_io_ram_data (ext_ram_data),
-    .io_ack_o            (_sram_controller_ext_io_ack_o),
-    .io_dat_o            (_sram_controller_ext_io_dat_o),
+    .io_wb_ack_o         (_sram_controller_ext_io_wb_ack_o),
+    .io_wb_dat_o         (_sram_controller_ext_io_wb_dat_o),
     .io_sram_io_ram_addr (ext_ram_addr),
     .io_sram_io_ram_be_n (ext_ram_be_n),
     .io_sram_io_ram_ce_n (ext_ram_ce_n),

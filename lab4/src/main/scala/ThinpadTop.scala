@@ -1,6 +1,7 @@
 import chisel3._
 import chisel3.experimental._
 import circt.stage.ChiselStage
+import bus._
 
 // Peripherals configuration
 case class ThinpadTopConfig(
@@ -14,87 +15,15 @@ case class ThinpadTopConfig(
     VideoEnable: Boolean = false
 )
 
-class CpldUartPort extends Bundle {
-    val rdn = Output(Bool())
-    val wrn = Output(Bool())
-    // val dataready = Input(Bool())
-    // val uart_tbre = Input(Bool())
-    // val uart_tsre = Input(Bool())
-}
+case class AddrMapping(
+    baseramAddr: UInt = "h8000_0000".U,
+    baseramMsk : UInt = "hffc0_0000".U,
+    extramAddr: UInt = "h8040_0000".U,
+    extramMsk : UInt = "hffc0_0000".U
+)
 
-class UartPort extends Bundle {
-    val txd = IO(Output(Bool()))
-    val rxd = IO(Input(Bool()))
-}
-
-class SramPort extends Bundle {
-    val ram_data = Analog(32.W)
-    val ram_addr = Output(UInt(20.W))
-    val ram_be_n = Output(UInt(4.W))
-    val ram_ce_n = Output(Bool())
-    val ram_oe_n = Output(Bool())
-    val ram_we_n = Output(Bool())
-}
-
-class FlashPort extends Bundle {
-    val a = Output(UInt(23.W))
-    val d = Analog(16.W)
-    val rp_n = Output(Bool())
-    val vpen = Output(Bool())
-    val ce_n = Output(Bool())
-    val oe_n = Output(Bool())
-    val we_n = Output(Bool())
-    val byte_n = Output(Bool())
-}
-
-class USBPort extends Bundle {
-    val a0 = Output(Bool())
-    val wr_n = Output(Bool())
-    val rd_n = Output(Bool())
-    val rst_n = Output(Bool())
-    val dack_n = Output(Bool())
-    val intrq = Input(Bool())
-    val drq_n = Input(Bool())
-}
-
-class Dm9kPort extends Bundle {
-    val cmd = Output(Bool())
-    val sd = Analog(1.W)
-    val iow_n = Output(Bool())
-    val ior_n = Output(Bool())
-    val cs_n = Output(Bool())
-    val pwrst_n = Output(Bool())
-    val int = Input(Bool())
-}
-
-class VGAPort() extends Bundle {
-    val red = Output(UInt(3.W))
-    val green = Output(UInt(3.W))
-    val blue = Output(UInt(2.W))
-    val hsync = Output(Bool())
-    val vsync = Output(Bool())
-    val clk = Output(Bool())
-    val de = Output(Bool())
-}
-
-class PLL extends ExtModule {
-    override val desiredName = s"pll_example"
-    val clk_in1 = IO(Input(Clock()))
-    val clk_out1 = IO(Output(Clock()))
-    val clk_out2 = IO(Output(Clock()))
-    val reset = IO(Input(Bool()))
-    val locked = IO(Output(Bool()))
-}
-
-class SEG7LUT extends ExtModule {
-    override val desiredName = s"SEG7_LUT"
-    val iDIG = IO(Input(UInt(4.W)))
-    val oSEG1 = IO(Output(UInt(8.W)))
-}
-
-class ThinpadTop extends RawModule {
+class ThinpadTop(config: ThinpadTopConfig, mmap: AddrMapping) extends RawModule {
     override val desiredName = s"lab4_top"
-    val config = ThinpadTopConfig()
     val clk_50M = IO(Input(Clock()))
     val clk_11M0592 = IO(Input(Clock()))
 
@@ -115,6 +44,30 @@ class ThinpadTop extends RawModule {
     val sl811 = if(config.Sl811Enable) IO(new USBPort) else null
     val dm9k = if(config.Dm9kEnable) IO(new Dm9kPort) else null
     val video = if(config.VideoEnable) IO(new VGAPort) else null
+
+    def connectSlaveToMux(muxSlavePort: WbMuxSlavePort, slavePort: WishboneSlavePort): Unit = {
+        muxSlavePort.dat_i := slavePort.dat_o
+        muxSlavePort.ack_i := slavePort.ack_o
+        muxSlavePort.err_i := false.B
+        muxSlavePort.rty_i := false.B
+        slavePort.cyc_i := muxSlavePort.cyc_o
+        slavePort.stb_i := muxSlavePort.stb_o
+        slavePort.adr_i := muxSlavePort.adr_o
+        slavePort.dat_i := muxSlavePort.dat_o
+        slavePort.we_i  := muxSlavePort.we_o
+        slavePort.sel_i := muxSlavePort.sel_o
+    }
+
+    def connectMasterToMux(muxMasterPort: WbMuxMasterPort, masterPort: WishboneMatserPort): Unit = {
+        masterPort.ack_i := muxMasterPort.ack_o
+        masterPort.dat_i := muxMasterPort.dat_o
+        muxMasterPort.adr_i := masterPort.adr_o
+        muxMasterPort.dat_i := masterPort.dat_o
+        muxMasterPort.we_i  := masterPort.we_o
+        muxMasterPort.sel_i := masterPort.sel_o
+        muxMasterPort.stb_i := masterPort.stb_o
+        muxMasterPort.cyc_i := masterPort.cyc_o
+    }
 
     dpy0 := 0.U
     dpy1 := 0.U
@@ -148,45 +101,20 @@ class ThinpadTop extends RawModule {
                 // sram tester input 
                 u_sram_tester.start := push_btn
                 u_sram_tester.random_seed := dip_sw
-                u_sram_tester.wb_ack_i := wb_mux.wbm_ack_o
-                u_sram_tester.wb_dat_i := wb_mux.wbm_dat_o
                 val bits = VecInit.fill(16)(false.B)
                 bits(0) := u_sram_tester.done
                 bits(1) := u_sram_tester.error
                 leds := bits.asUInt
-                // input from sram tester
-                wb_mux.wbm_adr_i := u_sram_tester.wb_adr_o
-                wb_mux.wbm_dat_i := u_sram_tester.wb_dat_o
-                wb_mux.wbm_we_i := u_sram_tester.wb_we_o
-                wb_mux.wbm_sel_i := u_sram_tester.wb_sel_o
-                wb_mux.wbm_stb_i := u_sram_tester.wb_stb_o
-                wb_mux.wbm_cyc_i := u_sram_tester.wb_cyc_o
-                // connect to slave0
-                wb_mux.wbs0_addr := "h8000_0000".U
-                wb_mux.wbs0_addr_msk := "hffc0_0000".U
-                wb_mux.wbs0_dat_i := sram_controller_base.io.dat_o
-                wb_mux.wbs0_ack_i := sram_controller_base.io.ack_o
-                wb_mux.wbs0_err_i := false.B
-                wb_mux.wbs0_rty_i := false.B
-                sram_controller_base.io.cyc_i := wb_mux.wbs0_cyc_o
-                sram_controller_base.io.stb_i := wb_mux.wbs0_stb_o
-                sram_controller_base.io.adr_i := wb_mux.wbs0_adr_o
-                sram_controller_base.io.dat_i := wb_mux.wbs0_dat_o
-                sram_controller_base.io.we_i := wb_mux.wbs0_we_o
-                sram_controller_base.io.sel_i := wb_mux.wbs0_sel_o
-                // conect to slave1
-                wb_mux.wbs1_addr := "h8040_0000".U
-                wb_mux.wbs1_addr_msk := "hffc0_0000".U
-                wb_mux.wbs1_dat_i := sram_controller_ext.io.dat_o
-                wb_mux.wbs1_ack_i := sram_controller_ext.io.ack_o
-                wb_mux.wbs1_err_i := false.B
-                wb_mux.wbs1_rty_i := false.B
-                sram_controller_ext.io.cyc_i := wb_mux.wbs1_cyc_o
-                sram_controller_ext.io.stb_i := wb_mux.wbs1_stb_o
-                sram_controller_ext.io.adr_i := wb_mux.wbs1_adr_o
-                sram_controller_ext.io.dat_i := wb_mux.wbs1_dat_o
-                sram_controller_ext.io.we_i := wb_mux.wbs1_we_o
-                sram_controller_ext.io.sel_i := wb_mux.wbs1_sel_o
+                // connect tester to mux
+                connectMasterToMux(wb_mux.wbm, u_sram_tester.wb)
+                // connect to slave0 baseram
+                wb_mux.wbs0.addr := mmap.baseramAddr
+                wb_mux.wbs0.addr_msk := mmap.baseramMsk
+                connectSlaveToMux(wb_mux.wbs0, sram_controller_base.io.wb)
+                // conect to slave1 extram
+                wb_mux.wbs1.addr := mmap.extramAddr
+                wb_mux.wbs1.addr_msk := mmap.extramMsk
+                connectSlaveToMux(wb_mux.wbs1, sram_controller_ext.io.wb)
             }
         }
     }
@@ -194,7 +122,7 @@ class ThinpadTop extends RawModule {
 
 object Main extends App {
     ChiselStage.emitSystemVerilogFile(
-      new ThinpadTop,
+      new ThinpadTop(ThinpadTopConfig(), AddrMapping()),
       Array("--target-dir","generated"),
       firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info")
     )

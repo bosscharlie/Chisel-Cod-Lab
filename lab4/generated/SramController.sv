@@ -4,15 +4,15 @@
 module SramController(
   input         clock,
                 reset,
-                io_stb_i,
-                io_cyc_i,
-  input  [31:0] io_adr_i,
-  input         io_we_i,
-  input  [31:0] io_dat_i,
-  input  [3:0]  io_sel_i,
+                io_wb_stb_i,
+                io_wb_cyc_i,
+  input  [31:0] io_wb_adr_i,
+  input         io_wb_we_i,
+  input  [31:0] io_wb_dat_i,
+  input  [3:0]  io_wb_sel_i,
   inout  [31:0] io_sram_io_ram_data,
-  output        io_ack_o,
-  output [31:0] io_dat_o,
+  output        io_wb_ack_o,
+  output [31:0] io_wb_dat_o,
   output [19:0] io_sram_io_ram_addr,
   output [3:0]  io_sram_io_ram_be_n,
   output        io_sram_io_ram_ce_n,
@@ -32,11 +32,11 @@ module SramController(
     else begin
       if (|stateReg) begin
         automatic logic [7:0][2:0] _GEN =
-          {{stateReg}, {3'h0}, {3'h6}, {3'h4}, {3'h4}, {3'h6}, {3'h2}, {stateReg}};
+          {{stateReg}, {3'h0}, {3'h6}, {3'h5}, {3'h4}, {3'h6}, {3'h2}, {stateReg}};
         stateReg <= _GEN[stateReg];
       end
-      else if (io_stb_i & io_cyc_i)
-        stateReg <= {1'h0, io_we_i, 1'h1};
+      else if (io_wb_stb_i & io_wb_cyc_i)
+        stateReg <= {1'h0, io_wb_we_i, 1'h1};
       if (~(|stateReg) | stateReg == 3'h1 | stateReg != 3'h2) begin
       end
       else
@@ -45,14 +45,14 @@ module SramController(
   end // always @(posedge)
   TriStateGate tri_0 (
     .triData (io_sram_io_ram_data),
-    .dataz   (stateReg == 3'h3 | stateReg == 3'h4 | stateReg == 3'h5),
-    .datain  (io_dat_i),
+    .dataz   (stateReg == 3'h1 | stateReg == 3'h2),
+    .datain  (io_wb_dat_i),
     .dataout (_tri_dataout)
   );
-  assign io_ack_o = _io_sram_io_ram_ce_n_T_1;
-  assign io_dat_o = rdData;
-  assign io_sram_io_ram_addr = io_adr_i[21:2];
-  assign io_sram_io_ram_be_n = ~io_sel_i;
+  assign io_wb_ack_o = _io_sram_io_ram_ce_n_T_1;
+  assign io_wb_dat_o = rdData;
+  assign io_sram_io_ram_addr = io_wb_adr_i[21:2];
+  assign io_sram_io_ram_be_n = ~io_wb_sel_i;
   assign io_sram_io_ram_ce_n = ~(|stateReg) | _io_sram_io_ram_ce_n_T_1;
   assign io_sram_io_ram_oe_n = stateReg != 3'h1 & stateReg != 3'h2;
   assign io_sram_io_ram_we_n = stateReg != 3'h4;
@@ -71,7 +71,7 @@ output [31:0] dataout;
 assign triData = dataz ? 32'bz : datain;
 assign dataout = triData;
 
-endmodule;
+endmodule
         
 
 // ----- 8< ----- FILE "firrtl_black_box_resource_files.f" ----- 8< -----

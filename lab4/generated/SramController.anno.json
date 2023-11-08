@@ -21,6 +21,6 @@
     "class":"firrtl.transforms.BlackBoxInlineAnno",
     "target":"SramController.TriStateGate",
     "name":"TriStateGate.v",
-    "text":"\nmodule TriStateGate(triData, dataz, datain, dataout);\ninout [31:0] triData;\ninput dataz;\ninput [31:0] datain;\noutput [31:0] dataout;\n\nassign triData = dataz ? 32'bz : datain;\nassign dataout = triData;\n\nendmodule;\n        "
+    "text":"\nmodule TriStateGate(triData, dataz, datain, dataout);\ninout [31:0] triData;\ninput dataz;\ninput [31:0] datain;\noutput [31:0] dataout;\n\nassign triData = dataz ? 32'bz : datain;\nassign dataout = triData;\n\nendmodule\n        "
   }
 ]

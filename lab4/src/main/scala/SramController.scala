@@ -1,6 +1,7 @@
 import circt.stage.ChiselStage
 import chisel3._
 import chisel3.util._
+import bus._
 import chisel3.experimental.Analog
 
 // Use Analog and inline verilog to implement tri-state gate
@@ -28,14 +29,7 @@ class TriStateGate extends BlackBox with HasBlackBoxInline {
 
 class SramController extends Module {
     val io = IO(new Bundle {
-        val stb_i = Input(Bool())
-        val cyc_i = Input(Bool())
-        val ack_o = Output(Bool())
-        val adr_i = Input(UInt(32.W))
-        val we_i = Input(Bool())
-        val dat_i = Input(UInt(32.W))
-        val sel_i = Input(UInt(4.W))
-        val dat_o = Output(UInt(32.W))
+        val wb = new WishboneSlavePort()
         val sram_io = new SramPort()
     })
     object State extends ChiselEnum {
@@ -49,11 +43,11 @@ class SramController extends Module {
     val tri = Module(new TriStateGate)
     tri.io.triData <> io.sram_io.ram_data
     tri.io.dataz := dataz
-    tri.io.datain := io.dat_i
+    tri.io.datain := io.wb.dat_i
     switch(stateReg) {
         is(IDLE) {
-            when(io.stb_i && io.cyc_i) {
-                when(io.we_i) {
+            when(io.wb.stb_i && io.wb.cyc_i) {
+                when(io.wb.we_i) {
                     stateReg := WRITE
                 } .otherwise {
                     stateReg := READ
@@ -70,10 +64,10 @@ class SramController extends Module {
         is(WRITE3) { stateReg := DONE }
         is(DONE) { stateReg := IDLE }
     }
-    io.ack_o := stateReg === DONE
-    io.dat_o := rdData
-    io.sram_io.ram_addr := io.adr_i(21,2)
-    io.sram_io.ram_be_n := ~io.sel_i
+    io.wb.ack_o := stateReg === DONE
+    io.wb.dat_o := rdData
+    io.sram_io.ram_addr := io.wb.adr_i(21,2)
+    io.sram_io.ram_be_n := ~io.wb.sel_i
     io.sram_io.ram_ce_n := stateReg === IDLE || stateReg === DONE
     io.sram_io.ram_oe_n := stateReg =/= READ && stateReg =/= READ2
     io.sram_io.ram_we_n := stateReg =/= WRITE2 
