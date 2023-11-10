@@ -34,13 +34,13 @@ class SramController extends Module {
         is(READ) { stateReg := READ2 }
         is(READ2) {
             stateReg := DONE
+            rdData := tri.io.dataout
         }
         is(WRITE) { stateReg := WRITE2 }
         is(WRITE2) { stateReg := WRITE3 }
         is(WRITE3) { stateReg := DONE }
         is(DONE) { stateReg := IDLE }
     }
-    when(stateReg === READ2) { rdData := tri.io.dataout }
     io.wb.ack_o := stateReg === DONE
     io.wb.dat_o := rdData
     io.sram_io.ram_addr := io.wb.adr_i(21,2)

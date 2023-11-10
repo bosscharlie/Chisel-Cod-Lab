@@ -79,3 +79,26 @@ class SEG7LUT extends ExtModule {
     val iDIG = IO(Input(UInt(4.W)))
     val oSEG1 = IO(Output(UInt(8.W)))
 }
+
+// Use Analog and inline verilog to implement tri-state gate
+class TriStateGate extends BlackBox with HasBlackBoxInline {
+    val io = IO( new Bundle{
+        val triData = Analog(32.W)
+        val dataz = Input(Bool())
+        val datain = Input(UInt(32.W))
+        val dataout = Output(UInt(32.W))
+    })
+    setInline("TriStateGate.v",
+        s"""
+        |module TriStateGate(triData, dataz, datain, dataout);
+        |inout [31:0] triData;
+        |input dataz;
+        |input [31:0] datain;
+        |output [31:0] dataout;
+        |
+        |assign triData = dataz ? 32'bz : datain;
+        |assign dataout = triData;
+        |
+        |endmodule
+        """.stripMargin)
+}

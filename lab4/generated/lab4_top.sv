@@ -29,6 +29,7 @@ module SramController(
   wire [31:0] _tri_dataout;
   reg  [2:0]  stateReg;
   reg  [31:0] rdData;
+  wire        _T_22 = stateReg == 3'h2;
   wire        _io_sram_io_ram_ce_n_T_1 = stateReg == 3'h6;
   always @(posedge clock) begin
     if (reset) begin
@@ -43,15 +44,13 @@ module SramController(
       end
       else if (io_wb_stb_i & io_wb_cyc_i)
         stateReg <= {1'h0, io_wb_we_i, 1'h1};
-      if (~(|stateReg) | stateReg == 3'h1 | stateReg != 3'h2) begin
-      end
-      else
+      if (_T_22)
         rdData <= _tri_dataout;
     end
   end // always @(posedge)
   TriStateGate tri_0 (
     .triData (io_sram_io_ram_data),
-    .dataz   (stateReg == 3'h1 | stateReg == 3'h2),
+    .dataz   (stateReg == 3'h1 | _T_22),
     .datain  (io_wb_dat_i),
     .dataout (_tri_dataout)
   );
